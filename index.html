@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PantryOS - Smart Visual Food Inventory</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-24 antialiased selection:bg-emerald-500 selection:text-slate-950">
+  <div class="max-w-md mx-auto p-4">
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6 pt-2">
+      <div>
+        <h1 class="text-2xl font-black tracking-tight text-emerald-400">PantryOS</h1>
+        <p class="text-xs text-slate-400 font-medium">Visual Inventory & Restock</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="open-settings-btn" title="API Settings" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-xl border border-slate-700 transition">
+          <i data-lucide="key" class="w-4 h-4"></i>
+        </button>
+        <button id="open-modal-btn" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-3 py-2 rounded-xl text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i> Add Item
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="grid grid-cols-2 bg-slate-800/90 p-1 rounded-xl mb-4 text-sm font-semibold border border-slate-700/50">
+      <button id="tab-inventory" class="py-2 rounded-lg bg-slate-700 text-white shadow-sm transition">Inventory</button>
+      <button id="tab-shopping" class="py-2 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+        Shopping List
+        <span id="shopping-badge" class="hidden bg-emerald-500 text-slate-950 text-xs px-1.5 py-0.5 rounded-full font-bold">0</span>
+      </button>
+    </nav>
+
+    <!-- Inventory View -->
+    <section id="view-inventory">
+      <!-- Location Filter Chips -->
+      <div class="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none text-xs font-semibold">
+        <button class="filter-chip px-3.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition" data-loc="all">All</button>
+        <button class="filter-chip px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-600 transition" data-loc="Pantry">Pantry</button>
+        <button class="filter-chip px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-600 transition" data-loc="Fridge">Fridge</button>
+        <button class="filter-chip px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-600 transition" data-loc="Freezer">Freezer</button>
+      </div>
+
+      <!-- Item List Container -->
+      <div id="inventory-list" class="space-y-2.5"></div>
+      <div id="inventory-empty" class="hidden text-center py-12 text-slate-500 text-sm">No items found. Tap "+ Add Item" or snap a photo.</div>
+    </section>
+
+    <!-- Shopping List View -->
+    <section id="view-shopping" class="hidden">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Restock Needed</span>
+        <button id="clear-bought-btn" class="text-xs text-emerald-400 hover:underline">Restock All Items</button>
+      </div>
+      <div id="shopping-list" class="space-y-2"></div>
+      <div id="shopping-empty" class="hidden text-center py-12 text-slate-500 text-sm">Everything is fully stocked!</div>
+    </section>
+  </div>
+
+  <!-- Add Item Modal -->
+  <dialog id="item-modal" class="bg-slate-800 text-slate-100 p-6 rounded-2xl max-w-sm w-11/12 border border-slate-700 shadow-2xl backdrop:bg-slate-950/80">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-bold">Add Item</h3>
+      <button id="close-modal-btn" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+
+    <!-- AI Visual Identification Button -->
+    <div class="mb-4 bg-slate-900/80 p-3.5 rounded-xl border border-slate-700/60 text-center">
+      <label class="cursor-pointer w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition">
+        <i data-lucide="camera" class="w-5 h-5"></i> Snap Item Photo
+        <input type="file" id="visual-ai-input" accept="image/*" capture="environment" class="hidden" />
+      </label>
+      <p id="ai-status" class="text-[11px] font-medium text-slate-400 mt-2">Take a photo of any food box, jar, or produce.</p>
+    </div>
+
+    <form id="item-form" class="space-y-3.5">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Item Name</label>
+        <input required type="text" id="input-name" placeholder="e.g. Cheerios" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Storage</label>
+          <select id="input-location" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="Pantry">Pantry</option>
+            <option value="Fridge">Fridge</option>
+            <option value="Freezer">Freezer</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Status</label>
+          <select id="input-status" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="stocked">In Stock</option>
+            <option value="low">Low</option>
+            <option value="out">Out of Stock</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" id="input-staple" checked class="rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-0" />
+        <label for="input-staple" class="text-xs text-slate-300">Always keep in rotation (Staple)</label>
+      </div>
+
+      <button type="submit" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl text-sm transition mt-2">Save to Inventory</button>
+    </form>
+  </dialog>
+
+  <!-- API Key Setup Modal -->
+  <dialog id="settings-modal" class="bg-slate-800 text-slate-100 p-6 rounded-2xl max-w-sm w-11/12 border border-slate-700 shadow-2xl backdrop:bg-slate-950/80">
+    <div class="flex justify-between items-center mb-3">
+      <h3 class="text-lg font-bold">Gemini API Key</h3>
+      <button id="close-settings-btn" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <p class="text-xs text-slate-400 mb-3">Add a free key from <a href="https://aistudio.google.com/" target="_blank" class="text-emerald-400 underline">Google AI Studio</a> to enable instant photo recognition.</p>
+    <input type="password" id="api-key-input" placeholder="Paste AI Studio API Key..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 mb-3" />
+    <button id="save-key-btn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2 rounded-xl text-sm transition">Save API Key</button>
+  </dialog>
+
+  <script>
+    let items = JSON.parse(localStorage.getItem('pantry_items')) || [
+      { id: '1', name: 'Olive Oil', location: 'Pantry', status: 'stocked', staple: true },
+      { id: '2', name: 'Eggs (Dozen)', location: 'Fridge', status: 'low', staple: true },
+      { id: '3', name: 'Ground Turkey', location: 'Freezer', status: 'out', staple: true }
+    ];
+
+    let currentTab = 'inventory';
+    let activeFilter = 'all';
+
+    const save = () => {
+      localStorage.setItem('pantry_items', JSON.stringify(items));
+      render();
+    };
+
+    const cycleStatus = (id) => {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      if (item.status === 'stocked') item.status = 'low';
+      else if (item.status === 'low') item.status = 'out';
+      else item.status = 'stocked';
+      save();
+    };
+
+    const deleteItem = (id) => {
+      items = items.filter(i => i.id !== id);
+      save();
+    };
+
+    const render = () => {
+      const buyCount = items.filter(i => i.status !== 'stocked').length;
+      const badge = document.getElementById('shopping-badge');
+      if (buyCount > 0) {
+        badge.textContent = buyCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      // Inventory View
+      const invContainer = document.getElementById('inventory-list');
+      const filtered = items.filter(i => activeFilter === 'all' || i.location === activeFilter);
+      
+      document.getElementById('inventory-empty').classList.toggle('hidden', filtered.length > 0);
+      invContainer.innerHTML = filtered.map(item => `
+        <div class="flex items-center justify-between p-3.5 bg-slate-800/80 border border-slate-700/50 rounded-xl hover:border-slate-600 transition">
+          <div class="flex-1">
+            <h4 class="font-bold text-sm text-slate-100">${item.name}</h4>
+            <span class="text-xs text-slate-400">${item.location}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="cycleStatus('${item.id}')" class="text-xs px-2.5 py-1 rounded-lg font-bold border transition ${
+              item.status === 'stocked' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+              item.status === 'low' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+              'bg-rose-500/10 text-rose-400 border-rose-500/30'
+            }">
+              ${item.status === 'stocked' ? 'In Stock' : item.status === 'low' ? 'Low' : 'Out'}
+            </button>
+            <button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-rose-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+      `).join('');
+
+      // Shopping List View
+      const shopContainer = document.getElementById('shopping-list');
+      const shopItems = items.filter(i => i.status !== 'stocked');
+      document.getElementById('shopping-empty').classList.toggle('hidden', shopItems.length > 0);
+      
+      shopContainer.innerHTML = shopItems.map(item => `
+        <div class="flex items-center justify-between p-3.5 bg-slate-800/80 border border-slate-700/50 rounded-xl">
+          <div>
+            <h4 class="font-bold text-sm text-slate-100">${item.name}</h4>
+            <span class="text-xs ${item.status === 'out' ? 'text-rose-400' : 'text-amber-400'} font-medium">Status: ${item.status.toUpperCase()}</span>
+          </div>
+          <button onclick="cycleStatus('${item.id}')" class="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg border border-emerald-500/40 transition">
+            Mark Restocked
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    };
+
+    // Navigation Tabs
+    const tabInv = document.getElementById('tab-inventory');
+    const tabShop = document.getElementById('tab-shopping');
+    const viewInv = document.getElementById('view-inventory');
+    const viewShop = document.getElementById('view-shopping');
+
+    tabInv.onclick = () => {
+      viewInv.classList.remove('hidden');
+      viewShop.classList.add('hidden');
+      tabInv.className = 'py-2 rounded-lg bg-slate-700 text-white shadow-sm transition';
+      tabShop.className = 'py-2 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5';
+    };
+
+    tabShop.onclick = () => {
+      viewShop.classList.remove('hidden');
+      viewInv.classList.add('hidden');
+      tabShop.className = 'py-2 rounded-lg bg-slate-700 text-white shadow-sm transition flex items-center justify-center gap-1.5';
+      tabInv.className = 'py-2 rounded-lg text-slate-400 hover:text-white transition';
+    };
+
+    // Filter Chips
+    document.querySelectorAll('.filter-chip').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.filter-chip').forEach(b => {
+          b.className = 'filter-chip px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-600 transition';
+        });
+        btn.className = 'filter-chip px-3.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition';
+        activeFilter = btn.dataset.loc;
+        render();
+      };
+    });
+
+    // Compress Image & Convert to Base64
+    const fileToBase64 = (file) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          const maxDim = 800; // Resize to small footprint for fast API processing
+          let scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(dataUrl.split(',')[1]);
+        };
+      });
+    };
+
+    // AI Vision Recognition Handler
+    document.getElementById('visual-ai-input').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const apiKey = localStorage.getItem('gemini_api_key');
+      const statusEl = document.getElementById('ai-status');
+
+      if (!apiKey) {
+        document.getElementById('settings-modal').showModal();
+        statusEl.textContent = 'Please enter your Gemini API key in settings.';
+        statusEl.className = 'text-[11px] font-medium text-rose-400 mt-2';
+        return;
+      }
+
+      statusEl.textContent = 'Analyzing photo with AI...';
+      statusEl.className = 'text-[11px] font-medium text-amber-400 mt-2';
+
+      try {
+        const base64Data = await fileToBase64(file);
+        const prompt = 'Identify this food item or grocery product. Respond ONLY in valid JSON format with keys "name" (concise product/ingredient name, e.g. "Cheerios Cereal" or "Gala Apples") and "location" (must be one of: "Pantry", "Fridge", or "Freezer"). No markdown blocks, just raw JSON.';
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+              ]
+            }],
+            generationConfig: { response_mime_type: 'application/json' }
+          })
+        });
+
+        const data = await response.json();
+        const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+
+        document.getElementById('input-name').value = parsed.name || '';
+        if (['Pantry', 'Fridge', 'Freezer'].includes(parsed.location)) {
+          document.getElementById('input-location').value = parsed.location;
+        }
+
+        statusEl.textContent = `Identified: "${parsed.name}" (${parsed.location})`;
+        statusEl.className = 'text-[11px] font-medium text-emerald-400 mt-2';
+        if (navigator.vibrate) navigator.vibrate(100);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Could not identify item. Check your API key or enter name manually.';
+        statusEl.className = 'text-[11px] font-medium text-rose-400 mt-2';
+      }
+    };
+
+    // Modal Controls
+    const modal = document.getElementById('item-modal');
+    document.getElementById('open-modal-btn').onclick = () => {
+      document.getElementById('ai-status').textContent = 'Take a photo of any food box, jar, or produce.';
+      document.getElementById('ai-status').className = 'text-[11px] font-medium text-slate-400 mt-2';
+      modal.showModal();
+    };
+    document.getElementById('close-modal-btn').onclick = () => modal.close();
+
+    // Settings Modal Controls
+    const settingsModal = document.getElementById('settings-modal');
+    document.getElementById('open-settings-btn').onclick = () => {
+      document.getElementById('api-key-input').value = localStorage.getItem('gemini_api_key') || '';
+      settingsModal.showModal();
+    };
+    document.getElementById('close-settings-btn').onclick = () => settingsModal.close();
+    document.getElementById('save-key-btn').onclick = () => {
+      const key = document.getElementById('api-key-input').value.trim();
+      localStorage.setItem('gemini_api_key', key);
+      settingsModal.close();
+    };
+
+    // Form Submission
+    document.getElementById('item-form').onsubmit = (e) => {
+      e.preventDefault();
+      const name = document.getElementById('input-name').value.trim();
+      const location = document.getElementById('input-location').value;
+      const status = document.getElementById('input-status').value;
+      const staple = document.getElementById('input-staple').checked;
+
+      items.push({ id: crypto.randomUUID(), name, location, status, staple });
+      save();
+      e.target.reset();
+      modal.close();
+    };
+
+    // Restock all action
+    document.getElementById('clear-bought-btn').onclick = () => {
+      items.forEach(i => i.status = 'stocked');
+      save();
+    };
+
+    // Initial load
+    render();
+  </script>
+</body>
+</html>
